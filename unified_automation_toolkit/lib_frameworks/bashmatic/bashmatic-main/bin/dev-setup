@@ -1,0 +1,930 @@
+#!/usr/bin/env bash
+# vim: ft=bash
+
+# shellcheck disable=2046
+
+[[ -z ${BASHMATIC_HOME} ]] && export BASHMATIC_HOME="${HOME}/.bashmatic"
+[[ -d ${BASHMATIC_HOME} ]] || bash -c "$(curl -fsSL https://bashmatic.re1.re); bashmatic-install"
+[[ -d ${BASHMATIC_HOME} ]] || {
+  echo "Can't find Bashmatic, even after attempting an installation."
+  echo "Please install Bashmatic with the following command line:"
+  echo 'bash -c "$(curl -fsSL https://bashmatic.re1.re); bashmatic-install"'
+  exit 1
+}
+
+source "${BASHMATIC_HOME}/init.sh"
+output.constrain-screen-width 100
+
+export DEFAULT_RUBY_VERSION="$(test -f .ruby-version && cat .ruby-version || echo '3.0.2')"
+
+export DEFAULT_POSTGRESQL_VERSION="latest"
+export DEFAULT_MYSQL_VERSION="11"
+
+# This flag is from lib/brew.sh
+export opt_terse=
+export ruby_version=
+declare -a pg_versions
+declare -a mysql_versions
+export DevSetup__Version="0.4.1"
+
+.dev-setup.detect.pg-version() {
+  export pg_versions=($(brew.package.available-versions postgresql))
+  export pre_latest_postgres_version=${pg_versions[0]}
+  export postgres_version=${postgres_version:-${DEFAULT_POSTGRESQL_VERSION:-${pre_latest_postgres_version}}}
+  info "Using PostgreSQL Version: ${bldylw}${postgres_version}" >&2
+}
+
+.dev-setup.action.postgres-package() {
+  local package
+  if [[ ${postgres_version} == "latest" ]]; then
+    package="postgresql"
+  elif is.numeric "${postgres_version}"; then
+    package="postgresql@${postgres_version}"
+  else
+    error "Invalid postgresql version: ${postgres_version}" >&2
+    return 2
+  fi
+
+  printf -- "%s" "${package}"
+}
+
+.dev-setup.detect.mysql-version() {
+  export mysql_versions=($(brew.package.available-versions mysql))
+  export latest_mysql_version="${mysql_versions[0]}"
+  export mysql_version=${mysql_version:-${latest_mysql_version}}
+  export mysql_version=${mysql_version:-${DEFAULT_MYSQL_VERSION}}
+}
+
+.dev-setup.detect.ruby-version() {
+  [[ -n ${ruby_version} ]] && return 0
+  [[ -f .ruby-version ]] && {
+    export ruby_version="$(cat .ruby-version | tr -d '\n')"
+  }
+  [[ -z ${ruby_version} ]] && export ruby_version=$(ruby.top-versions 3 | grep -v dev | tail -1)
+  [[ -z ${ruby_version} ]] && export ruby_version=${DEFAULT_RUBY_VERSION}
+}
+
+
+.dev-setup.ruby() {
+  if [[ -n ${ruby_version} ]]; then
+    h1 "Installing Ruby ${ruby_version}"
+    ruby.install "${ruby_version}"
+    ruby.init
+  else
+    warning "No Ruby Version was provided."
+  fi
+}
+
+.dev-setup.action.bash-it() {
+  h1 "Installing Bash-It and Powerline Prompts..."
+  bashit-activate dark developer
+}
+
+.dev-setup.action.z() {
+  local sources=/usr/local/src
+  local dir="${sources}/z"
+  local script="${dir}/z.sh"
+
+  if [[ ! -d "${sources}" ]] ; then
+    mkdir -p ${sources} 2>/dev/null || {
+      info "Please enter your SUDO password, if asked:"
+      set -x
+      sudo mkdir -p "${sources}"
+      set +x
+      run "sudo chown -R ${USER} ${sources}"
+    }
+  fi
+
+  [[ -d ${sources} ]] || {
+    error "Can't find folder [${sources}] even after attempting to create it with sudo."
+    return 1
+  }
+
+  [[ -d "${dir}" ]] || run "git clone https://github.com/rupa/z ${dir}"
+
+  for init in ${HOME}/.bash_profile ${HOME}/.zshrc; do
+    grep -q "${script}" "${init}" || {
+      info "Appending ${script} to ${init}..."
+      echo "[[ -s ${script} ]] && source ${script}" >>"${init}"
+    }
+  done
+
+  [[ -f ${script} ]] && {
+    info "Loading z.sh script"
+    source "${script}"
+    success "z.sh installed successfully"
+  }
+
+}
+
+.dev-setup.action.fonts() {
+  export DevSetup__BrewFonts=(
+    font-advent-pro
+    font-andale-mono
+    font-anonymice-powerline
+    font-arvo
+    font-aurulent-sans-mono-nerd-font
+    font-average-mono
+    font-awesome-terminal-fonts
+    font-bitstream-vera-sans-mono-nerd-font
+    font-blex-mono-nerd-font
+    font-cascadia-mono
+    font-consolas-for-powerline
+    font-cousine
+    font-cutive-mono
+    font-d2coding
+    font-daddy-time-mono-nerd-font
+    font-dejavu-sans-mono-for-powerline
+    font-denk-one
+    font-envy-code-r
+    font-everson-mono
+    font-fantasque-sans-mono
+    font-fontawesome
+    font-ia-writer-mono
+    font-inconsolata
+    font-jetbrains-mono
+    font-kawkab-mono
+    font-lekton-nerd-font
+    font-menlo-for-powerline
+    font-meslo-for-powerline
+    font-miriam-mono-clm
+    font-monoid
+    font-monoisome
+    font-mononoki
+    font-monoton
+    font-noto-mono
+    font-office-code-pro
+    font-oswald
+    font-oxygen
+    font-oxygen-mono
+    font-powerline-symbols
+    font-pt-mono
+    font-roboto
+    font-roboto-mono-nerd-font
+    font-share-tech-mono
+    font-sometype-mono
+    font-source-code-pro
+    font-source-sans-pro
+    font-titillium
+    font-tulpen-one
+    font-ubuntu
+    font-victor-mono
+  )
+}
+.dev-setup.action.dev() {
+  # List of Brew Formulas to install and link
+  export DevSetup__BrewPackages=("${DevSetup__BrewPackages[@]}"
+    ack
+    asciidoc
+    asciidoctor
+    awscli
+    bash-completion@2
+    bat
+    cloc
+    coreutils
+    curl
+    direnv
+    git
+    geoip
+    gh
+    gnu-sed
+    findutils
+    gnu-indent
+    gnu-sed
+    gnutls
+    grep
+    gnu-tar
+    gawk
+    htop
+    libevent
+    imagemagick
+    jpeg
+    jq
+    lame
+    libffi
+    libgcrypt
+    libgpg-error
+    libheif
+    libiconv
+    libidn2
+    libksba
+    libmemcached
+    libmpc
+    libomp
+    libpng
+    libtasn1
+    libtiff
+    libtool
+    libunistring
+    libusb
+    libxml2
+    libxslt
+    libyaml
+    libzip
+    mysql-client
+    ncurses
+    netcat
+    openssl@1.1
+    p7zip
+    pandoc
+    pcre
+    pstree
+    readline
+    rsync
+    shellcheck
+    shfmt
+    subversion
+    the_silver_searcher
+    tree
+    vim
+    watch
+    wget
+    ydiff
+    yq
+    zlib
+  )
+
+  export DevSetup__BrewCasks=("${DevSetup__BrewCasks[@]}"
+    chromedriver
+    rowanj-gitx
+  )
+}
+
+.dev-setup.action.gnu() {
+  # List of Brew Formulas to install and l`ink
+  export DevSetup__BrewPackages=("${DevSetup__BrewPackages[@]}"
+    gnutls
+    gnu-sed
+    gnu-tar
+    gnu-time
+    gnu-which
+  )
+}
+
+.dev-setup.callbacks.gpg() {
+  opts_force=1 brew.install.package gnupg
+}
+
+.dev-setup.action.gpg() {
+  export DevSetup__Callbacks+=(.dev-setup.callbacks.gpg)
+  export DevSetup__BrewCasks=("${DevSetup__BrewCasks[@]}"
+    gpg-suite
+  )
+}
+
+.dev-setup.action.cpp() {
+  export DevSetup__BrewPackages=("${DevSetup__BrewPackages[@]}"
+    autoconf
+    automake
+    cmake
+    gcc
+    gdbm
+    make
+    pkg-config
+  )
+}
+
+.dev-setup.callbacks.js() {
+  if [[ -f package.json ]]; then
+    if [[ -f yarn.lock ]]; then
+      brew.install yarn
+      run "yarn install"
+    else
+      brew.install npm
+      run "npm install"
+    fi
+  fi
+}
+
+.dev-setup.action.js() {
+  export DevSetup__BrewPackages=("${DevSetup__BrewPackages[@]}"
+    node
+    yarn
+  )
+  export DevSetup__BrewCasks=("${DevSetup__BrewCasks[@]}"
+    phantomjs
+  )
+  export DevSetup__Callbacks=(${DevSetup__Callbacks[@]}
+    .dev-setup.callbacks.js
+  )
+}
+
+.dev-setup.action.python() {
+  # List of Brew Formulas to install and l`ink
+  export DevSetup__BrewPackages=("${DevSetup__BrewPackages[@]}"
+    python
+  )
+}
+
+.dev-setup.action.ruby() {
+  set +e
+  .dev-setup.detect.ruby-version 2>/dev/null
+  [[ -z ${ruby_version} ]] && {
+    error "Ruby Version must be provided."
+    exit 1
+  }
+  # List of Brew Formulas to install and l`ink
+  export DevSetup__BrewPackages=("${DevSetup__BrewPackages[@]}"
+    rbenv
+    ruby-build
+    ruby-completion
+  )
+
+  export DevSetup__Callbacks=("${DevSetup__Callbacks[@]}"
+    .dev-setup.callbacks.ruby
+  )
+}
+
+.dev-setup.install-rbenv-hook() {
+  local login_shell=$(user.login-shell)
+  local rcfile=$(user.login-shell-init-file)
+  local rbenv_init
+
+  if [[ ${login_shell} == "bash" ]]; then
+    rbenv_init='eval "$(rbenv init -)"'
+  elif [[ ${login_shell} == "zsh" ]]; then
+    rbenv_init='eval "$(rbenv init - zsh)"'
+  fi
+
+  [[ -z ${rbenv_init} ]] && return 1
+
+  grep -q 'rbenv init' "${rcfile}" ||
+    echo "${rbenv_init}" >>"${rcfile}"
+
+  grep -q -E 'PATH.*\.rbenv/bin' "${rcfile}" ||
+    echo 'export PATH="$HOME/.rbenv/bin:$HOME/.rbenv/shims:$PATH"' >>"${rcfile}"
+}
+
+.dev-setup.callbacks.packages() {
+  run "rbenv global ${ruby_version}"
+  export LIBRARY_PATH=$LIBRARY_PATH:$(brew --prefix openssl)/lib
+  .dev-setup.install-rbenv-hook
+  ruby.init
+  ruby.bundle-install
+}
+
+.dev-setup.callbacks.ruby() {
+  ruby.install "${ruby_version}"
+  run "rbenv global ${ruby_version}"
+  export LIBRARY_PATH=$LIBRARY_PATH:$(brew --prefix openssl)/lib
+  .dev-setup.install-rbenv-hook
+  ruby.init
+  ruby.bundle-install
+}
+
+.dev-setup.action.java() {
+  export DevSetup__BrewPackages=("${DevSetup__BrewPackages[@]}"
+    openjdk@11
+    maven
+    maven-completion
+    maven-shell
+    ant
+    ant-contrib
+  )
+}
+
+.dev-setup.action.go() {
+  export DevSetup__BrewPackages=("${DevSetup__BrewPackages[@]}"
+    go
+    golang-migrate
+    golangci-lint
+  )
+}
+
+.dev-setup.action.bazel() {
+  export DevSetup__BrewPackages=("${DevSetup__BrewPackages[@]}"
+    openjdk@11
+    buildifier
+    bazelisk
+    python
+  )
+}
+
+.dev-setup.action.monitoring() {
+  export DevSetup__BrewPackages=("${DevSetup__BrewPackages[@]}"
+    htop
+    glances
+    nmap
+  )
+}
+
+.dev-setup.action.load-balancing() {
+  export DevSetup__BrewPackages=("${DevSetup__BrewPackages[@]}"
+    haproxy
+    nginx
+  )
+  export DevSetup__BrewServices=("${DevSetup__BrewServices[@]}"
+    haproxy
+    nginx
+  )
+}
+
+.dev-setup.action.caching() {
+  export DevSetup__BrewPackages=("${DevSetup__BrewPackages[@]}"
+    memcached
+    redis
+  )
+  export DevSetup__BrewServices=("${DevSetup__BrewServices[@]}"
+    memcached
+    redis
+  )
+}
+
+.dev-setup.action.postgres() {
+  local package="$(.dev-setup.action.postgres-package)"
+
+  export DevSetup__BrewPackages+=("${package}")
+  export DevSetup__BrewServices+=("${package}")
+  export DevSetup__Callbacks+=(.dev-setup.callbacks.postgres)
+}
+
+.dev-setup.callbacks.postgres() {
+  local package="$(.dev-setup.action.postgres-package)"
+  brew.package.is-installed "${package}"
+
+  set +e
+  brew unlink "${package}" 1>/dev/null 2>&1
+  run "brew link ${package} 2>/dev/null"
+
+  [[ -f ~/.psqlrc ]] && mv ~/.psqlrc ~/.psqlrc.bak
+  run "cp ${BASHMATIC_HOME}/conf/.psqlrc ${HOME}"
+  run "createuser -s postgres -U ${USER} 2>/dev/null || true"
+  run "createdb -E UTF8 -U ${USER} postgres 2>/dev/null || true"
+}
+
+.dev-setup.action.mysql() {
+  export DevSetup__BrewPackages=("${DevSetup__BrewPackages[@]}"
+    "mysql@${mysql_version}"
+  )
+  export DevSetup__BrewServices=("${DevSetup__BrewServices[@]}"
+    "mysql@${mysql_version}"
+  )
+}
+
+# TODO: fix install-grc script
+_.dev-setup.action.grc() {
+  bash "${BASHMATIC_HOME}/bin/install-grc"
+
+  local code=$?
+  [[ ${code} -ne 0 ]] && {
+    ((flag_on_error_abort)) && {
+      error "GRC setup returned exit code ${code}, aborting."
+      exit 127
+    }
+
+    warning "NOTE: GRC setup returned exit code ${code}."
+    return 1
+  }
+
+  return 0
+}
+
+# ————————————————— NO ACTIONS BELOW THIS POINT ——————————————————————————
+#
+# This file is split into two sections:
+#
+# 1) section that defines all available dev-setup actions (submodules)
+#    For a module to be defined, it must define a SHELL function named
+#    ".dev-setup.actions.<your-action-name>" where your-action-name can
+#    contain dashes, but no dots.
+#
+#    For example, ".dev-setup.action.python3" would be the action function
+#    defined above that installs python3, or it coule come from a third
+#    party python3 module.
+#
+# 2) The rest of the execution
+
+declare -a components
+declare -a components_to_install
+declare -a DevSetup__Errors
+declare -a DevSetup__BrewPackages
+declare -a DevSetup__BrewCasks
+declare -a DevSetup__BrewServices
+declare -a DevSetup__BrewFonts
+declare DevSetup__Initialized
+
+function dev-setup.initialize() {
+  export DevSetup__Initialized="${DevSetup__Initialized:-0}"
+
+  ((DevSetup__Initialized)) && return 0
+
+  export DevSetup__Initialized=1
+
+  # TODO: replace this array with the callback auto-detection
+  #       on the function naming convention. For instance,
+  #       for a group gpg, if a function .dev-setup.callback.gpg exists
+  #       then run it.
+  declare -a DevSetup__Callbacks
+
+  export DevSetup__BrewPackages=()
+  export DevSetup__BrewCasks=()
+  export DevSetup__BrewServices=()
+  export DevSetup__BrewFonts=()
+  export DevSetup__Callbacks=()
+
+  export components=($(util.functions-matching.diff ".dev-setup.action."))
+  export components_to_install=()
+
+  export flag_verbose=0
+  export flag_force=0
+  export flag_show_header=1
+  export flag_run_callbacks=1
+  export flag_callbacks_only=0
+  export flag_on_error_abort=0
+
+  return 0
+}
+
+dev-setup.print-components() {
+  local -a list=("$@")
+  if [[ ${#list[@]} -eq 0 ]]; then
+    warning "Warning: empty component list."
+    return 1
+  else
+    info "Detected the following components:"
+    array.to.bullet-list "$@" | sedx 's/•/      • /g'
+  fi
+  return 0
+}
+
+dev-setup.parse-opts() {
+  [[ -z "$1" ]] && {
+    usage
+    exit 0
+  }
+
+  local -a default_components=(dev)
+  local have_components=0
+
+  # Parse additional flags
+  while :; do
+    case $1 in
+    -l | --list)
+      shift
+      dev-setup.print-components "${components[@]}"
+     ;;
+    -g | --groups)
+      shift
+      local arguments="$1"
+      for component in ${arguments}; do
+        array.includes "${component}" "${components[@]}" || {
+          error "Invalid group: $1." "Valid groups are: ${bldgrn}$(array.to.csv "${components[@]}")"
+          exit 1
+        }
+        export components_to_install=(${components_to_install[@]} "${component}")
+      done
+      have_components=1
+      shift
+      ;;
+    -c | --only-callbacks)
+      shift
+      export flag_callbacks_only=1
+      ;;
+    -C | --no-callbacks)
+      shift
+      export flag_run_callbacksrun_callbacks=0
+      ;;
+    -d | --no-dev)
+      shift
+      default_components=()
+      ;;
+    -a | --all)
+      shift
+      export components_to_install=(${components[@]})
+      have_components=1
+      ;;
+    -r | --ruby-version)
+      shift
+      export ruby_version="$1"
+      shift
+      ;;
+    -p | --pg-version)
+      shift
+      export postgres_version="$1"
+      [[ -z "${pg_versions[*]}" ]] && .dev-setup.detect.pg-version
+      array.includes "${postgres_version}" "${pg_versions[@]}" || {
+        error "PostgreSQL version ${postgres_version} can not be installed via Brew." \
+          "Supported versions are $(array.to.csv "${pg_versions[@]}")"
+        exit 2
+      }
+      shift
+      ;;
+    -m | --mysql-version)
+      shift
+      export mysql_version="$1"
+      [[ -z "${mysql_versions[*]}" ]] && .dev-setup.detect.mysql-version
+      array.includes "${mysql_version}" "${mysql_versions[@]}" || {
+        error "MySQL version ${mysql_version} can not be installed via Brew." \
+          "Supported versions are $(array.to.csv "${mysql_versions[@]}")"
+        exit 2
+      }
+      shift
+      ;;
+    -n | --dry-run)
+      run.set-all dry-run-on
+      shift
+      ;;
+    -f | --force)
+      export flag_force=1
+      shift
+      ;;
+    -N)
+      unset flag_show_header
+      shift
+      ;;
+    -e | --exit-on-error)
+      run.set-all abort-on-error
+      export flag_on_error_abort=1
+      shift
+      ;;
+    -q | --quieter)
+      export flag_terse_output=true
+      shift
+      ;;
+    -v | --verbose)
+      export flag_verbose=1
+      shift
+      ;;
+    -h | -\? | --help)
+      shift
+      usage
+      exit 0
+      ;;
+    --) # End of all options; anything after will be passed to the action function
+      shift
+      break
+      ;;
+    -?*)
+      printf 'WARN: Unknown option (ignored): %s\n' "$1" >&2
+      exit 127
+      shift
+      ;;
+    *)
+      [[ -z "$1" ]] && break
+      shift
+      ;;
+    esac
+  done
+
+  (("${have_components}")) || {
+    error "Please specify either -g/--groups or -a/all, or use -h/--help for Help."
+    exit 2
+  }
+
+  [[ ${#default_components[@]} -gt 0 ]] && {
+    export components_to_install=("${default_components[@]}" "${components_to_install[@]}")
+  }
+}
+
+usage() {
+  usage-box "dev-setup [ flags ] © Installs various packages via Homebrew." \
+    "-a / --all" "Installs everything" \
+    "-g / --groups" "Installs dev + specified groups of packages and casks." \
+    " " "Can be space separated array, eg -g 'ruby js monitoring'" \
+    " " "Note that ${bldblu}dev${bldylw} group is always installed, unless --no-dev." \
+    "-d / --no-dev" "Skips ${bldblu}dev${txtylw} when used with -g flag." \
+    " " " " \
+    "-C / --no-callbacks" "Skip executing group callbacks when installing" \
+    "-c / --only-callbacks" "Skip main installers, and only run the callbacks." \
+    " " " " \
+    "-r / --ruby-version VERSION" "Ruby version, overrides defaulkt ${ruby_version}" \
+    "-p / --pg-version VERSION" "PostgreSQL version, overrides ${pg_version}" \
+    "-m / --mysql-version VERSION" "MySQL version, overrides ${mysql_version}" \
+    " " " " \
+    "-v / --verbose" "Print extra debugging info" \
+    "-e / --exit-on-error" "Abort if an error occurs. Default is to keep going." \
+    "-n / --dry-run" "Only print commands, but do not run them" \
+    "-q / --quiet" "Do not print as much output." \
+    " " " " \
+    "├GROUPS:" " " \
+    " " "${bldylw}$(array.to.csv ${components[@]:0:6})" \
+    " " "${bldylw}$(array.to.csv ${components[@]:6:6})" \
+    " " "${bldylw}$(array.to.csv ${components[@]:12:6})$(cursor.shift.x -1)$(cursor.shift.x 2)" \
+    " " " "
+
+  echo
+  info "${bldcyn}This script installs groups of Brew packages and Casks, organized by a programming "
+  info "${bldcyn}language or a stack. Each group may register some of its members as Brew services"
+  info "${bldcyn}to be started (such as PostgreSQL and MySQL)."
+  echo
+  info "${bldcyn}Additionally, each group may optionally register a shell function to run as a"
+  info "${bldcyn}callback at the end. For instance, Ruby's callback might be to run ${bldylw}bundle install"
+  info "${bldcyn}if the Gemfile file is found."
+  echo
+  info "${bldcyn}You can disable running of callbacks with -C / --no-callbacks flag."
+  echo
+
+  h3 EXAMPLES
+
+  echo
+  info "    ${bldblk}# Installs the following packages, and ruby 2.7.1 with PostgreSQL version 10"
+  info "    ${bldblu}❯ dev-setup -g 'dev caching fonts gnu js postgres ruby' -r 2.7.1 -p 10 "
+  echo
+  info "    ${bldblk}# Dry run to see what would be installed"
+  info "    ${bldblu}❯ dev-setup -n -g 'cpp gnu fonts load-balancing'"
+  printf "${clr}\n"
+  exit 0
+}
+
+dev.setup.print-versions() {
+  array.includes "ruby" "${components_to_install[@]}" && {
+    .dev-setup.detect.ruby-version
+    if [[ -z ${ruby_version} ]]; then
+      error "Can not install Ruby dependencies, without Ruby Version."
+      exit 1
+    else
+      info "Using Ruby version ${ruby_version}..."
+    fi
+  }
+
+  array.includes "postgres" "${components_to_install[@]}" && {
+    .dev-setup.detect.pg-version
+    if [[ -z ${postgres_version} ]]; then
+      error "Missing PostgreSQL version!"
+      exit 1
+    else
+      info "Using PostgreSQL version ${postgres_version}..."
+    fi
+  }
+
+  array.includes "mysql" "${components_to_install[@]}" && {
+    .dev-setup.detect.mysql-version
+    if [[ -z ${mysql_version} ]]; then
+      error "Missing MySQL version!"
+      exit 1
+    else
+      info "Using MySQL version ${mysql_version}..."
+    fi
+  }
+}
+
+dev-setup.header() {
+  box.magenta-in-blue "Bashmatic Mac-OSX DevSetup Installer Version ${DevSetup__Version}"
+}
+
+dev-setup.run-action() {
+  local action_name="$1"
+  shift
+  local action=".dev-setup.action.${action_name}"
+  set +e
+
+  is.a-function "${action}" || {
+    error "Invalid Dev Setup action ${action_name}" "function ${action} is not defined."
+    return 1
+  }
+  section "Loading packages from -> ${action_name}"
+  cursor.up 2
+
+  eval "${action} $*"
+}
+
+dev-setup.install.packages() {
+  local command="$1"
+  shift
+  local errors=0
+  local cmd
+  local code=0
+  for package in "${@}"; do
+    cmd="${command} ${package}"
+    if run.config.is-dry-run; then
+      run.print-long-command "$(run.dry-run-prefix)${txtylw}${cmd}" 150
+      code=$?
+    else
+      eval "${cmd}"
+    fi
+
+    [[ ${code} -ne 0 ]] && {
+      errors=$((errors + 1))
+      DevSetup__Errors=("${DevSetup__Errors[@]}" "${command} ${package}")
+    }
+  done
+  echo
+  return ${errors}
+}
+
+dev-setup.install() {
+  local failures=0
+  local total=0
+  local block_size
+
+  "${BASHMATIC_HOME}/bin/bashmatic-install" --skip-install
+  bashmatic.load-at-login
+  brew.install
+  brew.cache-reset
+
+  # shellcheck disable=SC2207
+  DevSetup__BrewPackages=($(array.uniq "${DevSetup__BrewPackages[@]}"))
+  # shellcheck disable=SC2207
+  DevSetup__BrewCasks=($(array.uniq "${DevSetup__BrewCasks[@]}"))
+  # shellcheck disable=SC2207
+  DevSetup__BrewServices=($(array.uniq "${DevSetup__BrewServices[@]}"))
+
+  if [[ ${flag_callbacks_only} -ne 1 ]]; then
+    block_size=${#DevSetup__BrewPackages[@]}
+    [[ ${block_size} -gt 0 ]] && {
+      h2 "Installing ${block_size} Brew Packages"
+      brew.cache-reset package
+      dev-setup.install.packages "brew.install.package" "${DevSetup__BrewPackages[@]}" || {
+        failures=$((failures + 1))
+      }
+      total=$((total + block_size))
+    }
+
+    block_size=${#DevSetup__BrewCasks[@]}
+    [[ "${block_size}" -gt 0 ]] && {
+      h2 "Installing ${block_size} Brew Casks"
+      brew.cache-reset cask
+      dev-setup.install.packages "brew.install.cask" "${DevSetup__BrewCasks[@]}" || {
+        failures=$((failures + 1))
+      }
+      total=$((total + block_size))
+    }
+
+    block_size=${#DevSetup__BrewServices[@]}
+    [[ "${block_size}" -gt 0 ]] && {
+      h2 "Starting ${block_size} Brew Services"
+      dev-setup.install.packages "brew.service.up" "${DevSetup__BrewServices[@]}" || {
+        failures=$((failures + 1))
+      }
+      total=$((total + block_size))
+    }
+
+    block_size=${#DevSetup__BrewFonts[@]}
+    [[ "${block_size}" -gt 0 ]] && {
+      h2 "Installing ${block_size} Open Source Fonts"
+      brew tap | grep -q cask-fonts || run "brew tap homebrew/cask-fonts"
+      brew.cache-reset
+      dev-setup.install.packages "brew.install.cask" "${DevSetup__BrewFonts[@]}" || {
+        failures=$((failures + 1))
+      }
+      total=$((total + block_size))
+    }
+  fi
+
+  if [[ ${flag_run_callbacks} -eq 1 ]]; then
+    [[ "${#DevSetup__Callbacks[@]}" -gt 0 ]] && {
+      h2 "Executing Callbacks"
+      for command in "${DevSetup__Callbacks[@]}"; do
+        if util.is-a-function "${command/ */}"; then
+          if run.config.is-dry-run; then
+            run.print-long-command "${command}"
+          else
+            eval "${command}" || failures=$((failures + 1))
+          fi
+          total=$((total + 1))
+        else
+          run "${command}"
+          [[ "${LibRun__LastExitCode}" -eq 0 ]] || {
+            failures=$((failures + 1))
+          }
+          total=$((total + 1))
+        fi
+      done
+    }
+  fi
+
+  if [[ ${failures} -eq 0 ]]; then
+    success "Setup has completed with no failures and ${total} commands ran."
+  else
+    echo
+    warning \
+      "Setup completed, but with some failures." \
+      "Total of ${failures} failures out of ${total} commands were detected and skipped."
+        echo
+        h.e "ATTENTION: the following commands failed:" "${DevSetup__Errors[@]}"
+  fi
+}
+
+function dev-setup.invoke-actions() {
+  for c in $@; do
+    dev-setup.run-action "${c}"
+  done
+  cursor.down 3
+}
+
+function dev-setup.run-actions() {
+  if [[ ${BASHMATIC_OS} =~ darwin ]]; then
+    brew.install
+  fi
+
+  dev-setup.invoke-actions "$@"
+  dev-setup.install
+}
+
+function dev-setup.main() {
+  # dev-setup.initialize
+  [[ "${flag_show_header}" == "1" ]] && dev-setup.header
+
+  dev-setup.parse-opts "$@"
+  ((flag_verbose)) && run.inspect-variables-that-are starting-with flag_
+  dev.setup.print-versions
+
+  [[ -z ${components_to_install[*]} ]] && export components_to_install=(${components[@]})
+  dev-setup.print-components "${components_to_install[@]}"
+  dev-setup.run-actions "${components_to_install[@]}"
+}
+
+if [[ $0 =~ 'dev-setup' ]]; then
+  util.eval-function-body "dev-setup.initialize"
+  dev-setup.main "$@"
+fi

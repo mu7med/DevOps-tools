@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# vim: ft=bash
+
+# Bashmatic Utilities
+# © 2016-2022 Konstantin Gredeskoul, All rights reserved. MIT License.
+# Distributed under the MIT LICENSE.
+
+# IMPORTANT: Override this variable if your tests are located in a different folder, eg 'specs'
+# shellcheck disable=2046
+[[ -z ${BASHMATIC_HOME} ]] && export BASHMATIC_HOME="$(dirname $(cd $(dirname "${BASH_SOURCE[0]:-${(%):-%x}}") || exit 1; pwd -P))"
+
+[[ -s "${BASHMATIC_HOME}/init.sh" ]] || {
+  echo "Can not find Bashmatic Dependency. Is it installed?"
+  exit 1  
+}
+
+# shellcheck source=./../init.sh
+source "${BASHMATIC_HOME}/init.sh"
+
+export BashMatic__ColorLoaded=0
+source "${BASHMATIC_HOME}/lib/color.sh"
+
+if [[ -n $CI ]] ; then
+  export UI_WIDTH=120
+  output.constrain-screen-width "${UI_WIDTH}"
+  output.set-min-width "${UI_WIDTH}"
+  output.set-max-width "${UI_WIDTH}"
+fi
+
+function specs.main() {
+  export TEST_DIR="${TEST_DIR:-"test"}"
+  # shellcheck source=./../test/helpers/test-lib.sh
+  source "${BASHMATIC_HOME}/test/helpers/test-lib.sh"
+
+  if is.sourced-in; then
+    info "All functions are loaded. "
+    info "Now you can run ${bldylw}specs.run <spec> <specs> ... "
+    return 0
+  else
+    specs.run "$@"
+  fi
+}
+
+specs.main "$@"

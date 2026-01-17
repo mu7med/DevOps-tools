@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# vim: ft=sh
+#
+# Bashmatic Framework® 
+# Copyright © 2016-2022 Konstantin Gredeskoul, All rights reserved, MIT License.
+#
+# This is a simple helper that serves three functions:
+#   1. If BASHMATIC_HOME is not set, it tries very hard to figure it out
+#   2. If Bashmatic is not installed, it attempts to install it.
+#   3. If an argument is a Bashmatic function, it executes it.
+#
+# This script is particularly useful when your defualt shell is not BASH.
+# It allows you to still invoke most of Bashmatic's helpers using:
+#
+#   $ bashmatic <helper> <args> 
+#
+# syntax.
+
+# shellcheck disable=2046
+[[ -z ${BASHMATIC_HOME} ]] && export BASHMATIC_HOME="$(dirname $(cd $(dirname "${BASH_SOURCE[0]:-${(%):-%x}}") || exit 1; pwd -P))"
+source "${BASHMATIC_HOME}/init.sh" -q
+
+__func="$1"
+shift
+
+if is.a-function "${__func}"; then
+  ${__func} "$@"
+elif is.a-function "bashmatic.${__func}"; then
+  bashmatic."${__func}" "$@"
+else
+  error "Can't find a valid function based on the argument ${bldylw}${__func}"
+  exit 1
+fi
+

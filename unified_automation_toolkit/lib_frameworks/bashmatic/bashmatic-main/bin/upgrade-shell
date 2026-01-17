@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+# vim: ft=bash
+#
+# Usage:       upgrade-bash
+# Description: Upgrade BASH to version 4 on MacOSX
+#
+# (c) 2021 Konstantin Gredeskoul
+# Part of BashMatic Suite of BASH functions.
+#
+
+([[ -n ${ZSH_EVAL_CONTEXT} && ${ZSH_EVAL_CONTEXT} =~ :file$ ]] ||
+  [[ -n $BASH_VERSION && $0 != "$BASH_SOURCE" ]]) && __ran_as_script=0 || __ran_as_script=1
+
+(($__ran_as_script)) || {
+  echo
+  printf "${txtred}This script should be run, not sourced.${clr}\n"
+  echo
+  return
+}
+
+# shellcheck disable=2046
+[[ -z ${BASHMATIC_HOME} ]] && export BASHMATIC_HOME="$(dirname $(cd $(dirname "${BASH_SOURCE[0]:-${(%):-%x}}") || exit 1; pwd -P))"
+source "${BASHMATIC_HOME}/init.sh"
+
+export SHELL_BASH_OSX="/bin/bash"
+export SHELL_BASH_BREW="/usr/local/bin/bash"
+
+bash.install() {
+  echo "installing latest BASH with brew, please hold on ... "
+  set -e
+  brew install bash 2>&1 | cat 1>/dev/null
+  set +e
+}
+
+bash.append_path() {
+  local file=${1}
+  local new_path=${2:-"/usr/local/bin"}
+  local string="export PATH=\"${new_path}:\${PATH}\""
+  if [[ -z $(${GrepCommand} "export PATH=\"${new_path}" "${file}") ]]; then
+    echo "adding ${txtblue}${new_path}${clr} to ${txtgrn}${file}${clr}"
+    set -e
+    echo >>"${file}"
+    echo "${string}" >>"${file}"
+    echo >>"${file}"
+    set +e
+    ok:
+  else
+    echo "file ${bldylw}${file}${txtblu} already contains ${bldgrn}${string}${clr}..."
+  fi
+}
+
+bash.install.path.rc() {
+  if [[ ${PATH} != /usr/local/bin:* ]]; then
+    export PATH="/usr/local/bin:$PATH"
+    bash.append_path ~/.bashrc
+    bash.append_path ~/.bash_profile
+  fi
+}
+
+bash.current.shell() {
+  if [[ -n $(which finger) ]]; then
+    finger "${USER}" | grep Shell | awk '{print $4}'
+  else
+    echo "$SHELL"
+  fi
+}
+
+bash.user.chsh() {
+  local new_shell=${1}
+
+  if [[ "${SHELL}" == "${new_shell}" ]]; then
+    warning: "abort: ${bldylw} shell ${new_shell} is already current."
+    return -1
+  fi
+
+  if ! [[ -x "${new_shell}" ]]; then
+    bash.install.version4
+  fi
+
+  if [[ -x ${new_shell} ]]; then
+    if [[ -z $(grep "${new_shell}" /etc/shells) ]]; then
+      echo "Please enter your password if asked, as the following command may require sudo:"
+      echo "${new_shell}" | sudo tee -a /etc/shells
+    fi
+
+    set -ex
+    chsh -s "${new_shell}"
+    set +ex
+    echo "Great, shell change was successful."
+    echo
+    bash.instructions
+  else
+    echo "${new_shell} is still not there, or not executable :(]\n"
+  fi
+}
+
+bash.confirm() {
+  echo "Upgrade Your BASH"
+
+  echo "This script will:\n" \
+    "  1. install (if needed) version 4 of BASH to /usr/local/bin/bas\n" \
+    "  2. append the shell path to the /etc/shells file, and\n" \
+    "  3. it will switch your shell to the new one\n " \
+    "You will need keep your current session open, and start a new terminal\n" \
+    "To verify that you have a new version, type 'echo \$BASH_VERSION' i\n " \
+    "the new terminal; you should see something like '4.4.12(1)-release\n"
+
+  echo
+}
+
+bash.quit_if_already_upgraded() {
+  if [[ $(bash.current.shell) == ${SHELL_BASH_BREW} ]]; then
+    echo
+    echo \
+      "It appears that your current shell is already\n" \
+      "${bldcyn}${SHELL_BASH_BREW}${bldylw}"
+
+    exit 0
+  fi
+}
+
+bash.instructions() {
+  echo "NOTE, that your current session will still be on the old shell.\n" \
+    "You need to start a new terminal session, make sure it loads\n " \
+    "before you close this one. In the new termninal you should see \n" \
+    "something similar to '4.4.12(1)-release' when you type 'echo \$BASH_VERSION'\n"
+}
+
+#——————————————————————————————————————————————————————————————————————————————
+# Main
+#——————————————————————————————————————————————————————————————————————————————
+
+main() {
+  bash.quit_if_already_upgraded
+  bash.confirm
+  bash.user.chsh ${SHELL_BASH_BREW}
+  bash.install.path.rc
+}
+
+main "$@"

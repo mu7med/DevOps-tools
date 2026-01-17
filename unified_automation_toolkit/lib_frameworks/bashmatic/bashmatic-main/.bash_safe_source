@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC1091
+# vim: ft=bash
+# © Copyright 2021 Konstantin Gredeskoul
+# Part of BASHMATIC framework.
+
+set +e
+
+function is-debug() {
+  export DEBUG=${DEBUG:-0}
+  export BASHMATIC_DEBUG=${BASHMATIC_DEBUG:-0}
+  export BASHMATIC_PATH_DEBUG=${BASHMATIC_PATH_DEBUG:-0}
+  local sum=$(( DEBUG + BASHMATIC_DEBUG + BASHMATIC_PATH_DEBUG ))
+  if [[ ${sum} -gt 0 ]]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+function debug-info() {
+  is-debug || return
+  printf "${txtblk}${bakgrn} [debug] ➔ ${clr} ${bldgrn}%-60.60s${clr}${bldgrn}$2" "$1"
+  [[ -n $3 ]] && eval "$3"
+}
+
+function debug-error() {
+  is-debug || return
+  printf "${txtblk}${bakred} [error] ➔ ${clr} ${bldred}%-60.60s${clr}${txtred}$2" "$1"
+  [[ -n $3 ]] && eval "$3"
+}
+
+function result-ok() {
+  is-debug && printf "${bldwht}${bakgrn}[ ✔︎ ]${clr}\n"
+}
+
+function result-failure() {
+  is-debug && printf "${bldwht}${bakred}[ ✘ ]${clr}"
+  if [[ $1 =~ ([0-9]) ]] ; then
+    printf " [ exit code=$1 ]\n"
+  else
+    echo
+  fi
+}
+
+is-debug && BASHMATIC_DEBUG=1
+is-debug || unset BASHMATIC_DEBUG
+
+if is-debug; then
+  # shellcheck source=./.envrc.debug.on
+  source "${BASHMATIC_HOME}/.envrc.debug.on"
+else
+  # shellcheck source=./.envrc.debug.off
+  source "${BASHMATIC_HOME}/.envrc.debug.off"
+fi
+
+function source_if_exists() {
+  for file in "$@"; do
+    if [[ -s "${file}" ]]; then
+      debug-info "${file}"
+      # shellcheck source=./${file}
+      source "${file}"
+      local code=$?
+      if ((code)); then
+        result-failure ${code}
+      else
+        result-ok
+      fi
+    else
+      debug-error "File [$file] does not exist."
+    fi
+  done
+
+  return ${code}
+}
+

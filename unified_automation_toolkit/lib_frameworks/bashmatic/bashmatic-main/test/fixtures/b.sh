@@ -1,0 +1,2 @@
+
+export BBB=1

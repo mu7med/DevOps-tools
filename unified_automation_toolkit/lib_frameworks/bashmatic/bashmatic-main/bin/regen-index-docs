@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# vim: ft=sh
+
+# shellcheck disable=2046
+[[ -z ${BASHMATIC_HOME} ]] && export BASHMATIC_HOME="$(dirname $(cd $(dirname "${BASH_SOURCE[0]:-${(%):-%x}}") || exit 1; pwd -P))"
+source "${BASHMATIC_HOME}/init.sh"
+
+list.modules() {
+  find "${BASHMATIC_HOME}/lib/" -type f | sedx 's/.*lib\///g; s/\.sh//g; s/^\///g' | sort
+}
+
+generate-functions-index() {
+  h1 "Generating FUNCTIONS.md..."
+  local temp="/tmp/FUNCTIONS.adoc"
+  run "rm -f ${temp} && touch ${temp}"
+
+  printf "= Bashmatic Functions Index\n" >>"${temp}"
+  cat <<-HEADER >>"${temp}"
+:allow-uri-read:
+:doctype: book
+:sectnums:
+:showtitle:
+:toc:
+:toclevels: 5
+:icons: font
+HEADER
+
+  printf "\n== Bashmatic Modules\n\n" >>"${temp}"
+  for module in $(list.modules); do
+    printf "* %s\n" "xref:#module-${module}[${module}]" >>"${temp}"
+  done
+  printf "\n== List of Bashmatic Functions\n\n" >>"${temp}"
+  local code_on="[source,bash]"
+  local code_off="----"
+
+  for module in $(list.modules); do
+    printf "\n${txtylw}(${module}) ${bldgrn}"
+
+    printf "\n=== Module \`%s\`\n\n" "${module}" >>"${temp}"
+    for function in $(bashmatic.functions-from "${module}" 1); do
+      printf "•"
+      (
+        printf "==== \`%s\`\n" "${function}"
+        printf "\n%s\n%s\n" "${code_on}" "${code_off}"
+        type "${function}" | sed 's/;$//g' | tail +2
+        printf "\n%s\n\n" "${code_off}"
+      ) >>"${temp}"
+    done
+  done
+
+  printf "\n\n== Copyright\n\n" >>${temp}
+  printf "\n\n© 2016-2022 Konstantin Gredeskoul, All rights reserved, MIT License." >>${temp}
+
+  run "mv -f ${temp} ${BASHMATIC_HOME}/doc"
+}
+
+.install.kramdoc() {
+  command -v kramdoc>/dev/null || gem.install asciidoctor-kramdoc
+}
+
+generate-shdoc() {
+  .install.kramdoc
+  local usage="doc/USAGE.md"
+  run "rm -f ${usage}"
+  run "touch ${usage}"
+  
+  for file in $(find bin -name '[a-z]*' -type f); do
+    info "Extracting shdoc from ${bldylw}${file}..."
+    bin/shdoc "${file}" >> ${usage} 
+  done
+  hr ; echo
+  info "shdoc generated, converting USAGE.md to asciiidoc..."
+  run "kramdoc doc/USAGE.md"
+  hr; echo
+  info "shdoc generated, converting USAGE.adoc to PDF..."
+  run "bin/adoc2pdf doc/USAGE.adoc"
+}
+
+if [[ $0 == "${BASH_SOURCE[0]}" ]] ; then
+  run.set-all abort-on-error
+  generate-shdoc  
+  generate-functions-index
+fi
+
+
+

@@ -1,0 +1,193 @@
+#!/usr/bin/env bash
+# vim: ft=bash
+
+# shellcheck disable=2046
+[[ -z ${BASHMATIC_HOME} ]] && export BASHMATIC_HOME="$(dirname $(cd $(dirname "${BASH_SOURCE[0]:-${(%):-%x}}") || exit 1; pwd -P))"
+source "${BASHMATIC_HOME}/init.sh" >/dev/null
+
+function adoc-header() {
+  local file="$1"
+
+cat <<EOF
+:pdf-fontsdir: ${BASHMATIC_HOME}./fonts;GEM_FONTS_DIR
+:pdf-theme: ${BASHMATIC_HOME}/.asciidoc-pdf-theme-titilium.yml
+:source-highlighter: rouge
+:rouge-style: base16.monokai
+:safe: unsafe
+:allow-uri-read:
+:toc:
+:toclevels: 5
+:icons: font
+EOF
+  local attrfile=".${file}.attr"
+  if [[ -f "${attrfile}" ]]; then
+    ## :TBD: Shouldn't `attributes` be declared somewhere?
+    attributes="$(cat "${attrfile}")"
+    info  "Adding attributes from local file ${bldylw}${attrfile}:">&2
+    cat "${attrfile}"
+  else
+    info "No local attribute file was found: ${bldylw}${attrfile}." >&2
+  fi
+}
+
+function install-fonts() {
+  (
+    cd "${BASHMATIC_HOME}" || exit 1
+    [[ -d .fonts ]] || run "tar xvzf .fonts.tar.gz"
+    cd - || exit 1
+  ) >/dev/null
+}
+
+
+function install-graphicsmagick() {
+  local function="install-graphicsmagick-${BASHMATIC_OS}"
+  eval "${function}"
+}
+
+function install-graphicsmagick-linux() {
+  local package="graphicsmagick"
+  sudo apt-get install -yqq ${package} || {
+    error "Failed to install ${package} package."
+    return 1
+  }
+  return 0
+}
+
+function install-graphicsmagick-darwin() {
+  local package="graphicsmagick"
+  brew.cache-reset
+  brew.install.package ${package}
+  ## :TBD: Why `dir` as it doesn't appear to be used?
+  local dir=$(brew --prefix ${package})
+  brew.package.link ${package}
+  return 0
+}
+
+function install-gems() {
+  command -v rbenv >/dev/null && eval "$(rbenv init -)"
+
+  gem.cache-refresh
+  gem.is-installed prawn-gmagick || run "gem install prawn-gmagick -- --with-opt-include=${dir}/include/GraphicsMagick"
+  run "mkdir -p ${BASHMATIC_GEMS}"
+  run "bundle check ${BASHMATIC_BUNDLER_ARGS} || bundle install -j 12 ${BASHMATIC_BUNDLER_ARGS}" 
+}
+
+function ensure-dependencies() {
+  h6 "Ensuring PDF conversion dependencies are installed..."
+
+  #run.set-all abort-on-error
+  install-fonts
+  install-graphicsmagick
+  install-gems
+}
+
+function install-gems-manually() {
+  local -a gems=(
+    prawn
+    specific_install
+    prawnpdf/prawn-table
+    asciidoctor-pdf
+    rouge
+    pygments.rb
+    coderay
+    rghost
+    hexapdf
+    text-hyphen
+  )
+
+  local gem
+  for gem in ${gems[@]}; do
+    if [[ ${gem} =~ / ]]; then
+      run "gem specific_install ${gem} --silent"
+    else
+      gem.install "${gem}"
+    fi
+  done
+}
+
+main() {
+  local file="${1:-"README.adoc"}"; shift
+  local temp=${file/.adoc/-pdf.adoc}
+  local target=${file/adoc/pdf}
+
+  output.constrain-screen-width 130
+  
+  [[ -f ${file} ]] || file="${file}.adoc"
+  [[ -f ${file} ]] || {
+    error "Cant' find file $1 or ${file}..."
+    return 1
+  }
+
+  h6 "Ensuring all PDF dependencies are available..."
+  ((SKIP_DEPS)) || ensure-dependencies
+
+  run "rm -f ${target} ${temp}"
+  h6 "Starting ADOC -> PDF Conversion..."
+
+  if grep -E -q '^:pdf-' "${file}" ; then
+    run "cp \"${file}\" ${temp}"
+  else
+    info "Pre-pending PDF font configuration..."
+    ( 
+      sed -n '1p' "${file}"
+      adoc-header "${file}"
+      sed -n '2,$p' "${file}"
+    ) >"${temp}"
+  fi
+
+  info "Rendering ADOC file: ${bldylw}${temp}"
+  
+  local script=$(file.temp)
+  ((bashmatic_adoc2pdf_debug)) || trap "rm -f ${script} ${temp}" EXIT
+
+  # Create a tiny script so that we can debug it later if needed
+  # as well as print it to STDOUT
+  ( cat<<EOF
+#!/usr/bin/env bash
+bundle exec ${BASHMATIC_BUNDLER_ARGS} asciidoctor-pdf \\
+      --trace \\
+      --verbose \\
+      --quiet \\
+      --timings \\
+      --attribute toc \\
+      --attribute toclevels=5 \\
+      --attribute allow-uri-read \\
+      --attribute pdf-theme="${BASHMATIC_HOME}/.asciidoc-pdf-theme.yml" \\
+      --attribute pdf-fontsdir="${BASHMATIC_HOME}/.fonts;GEM_FONTS_DIR"  \\
+      --out-file ${target} \\
+      ${temp} $*
+EOF
+  ) >"${script}"
+
+  info "Printing the complete asciidoctor-pdf command for debugging:\n"
+  printf -- "${txtylw}$(cat "${script}")${clr}\n\n${txtgrn}"
+  hr
+  local out=$(file.temp)
+  echo
+  inf "Generating PDF from ${file} to ${bldylw}${target}... please wait..."
+  local s=$(millis)
+  ( bash "${script}" ) >"${out}" 2>&1
+  local code=$?
+  local e=$(millis)
+  ((code)) && { 
+    not-ok:
+    error "Command exited with status code ${code}."
+    cat "${out}"
+    return ${code}
+  }
+  duration $((e - s))
+  ok:; hr ; echo
+  info "Generation Statistics:"
+  printf "${bldblu}\n"
+  cat "${out}"
+  rm -f "${out} ${temp}"
+  echo
+  [[ -s ${target} ]] && \
+    success "File ${target} has been re-generated, and is of size $(file.size.mb "${target}")"
+
+  info "HINT: to reduce size of the PDF run ${bldgrn}pdf-reduce ${target}"
+  echo
+}
+
+main "$@"
+  

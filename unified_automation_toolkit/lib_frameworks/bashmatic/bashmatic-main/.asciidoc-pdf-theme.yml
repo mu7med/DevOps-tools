@@ -1,0 +1,179 @@
+extends: default
+base:
+  border-color: 612e0a
+  font:
+    size: 10
+    color: 222222
+    family: Lato
+    weight: 500
+  line-height-length: 11
+  line-height: $base-line-height-length / $base-font-size
+vertical-spacing: $base-line-height-length
+code:
+  background-color: 191919
+  font-color: $base-font-color
+  border-color: 303030
+  line-height-length: 11
+  line-height: $code-line-height-length / $code-font-size
+  font:  
+    size: 7
+    family: Cascadia
+    weight: 800
+pre:
+  background-color: fdea7266
+  font-color: $base-font-color
+  border-color: 756600f2
+  line-height-length: 11
+  line-height: $code-line-height-length / $code-font-size
+  font:  
+    size: 8
+    family: Cascadia
+    weight: 800
+heading:
+  line-height-length: 20
+  font:
+    color: f16b04
+    family: Barlow
+    style: bold
+    size: 17
+  line-height: $heading-line-height-length / $heading-font-size
+image:
+  border-radius: 15
+admonition:
+  column-rule-color: $base-border-color
+  icon:
+    caution:
+      stroke-color: D6A623
+    note:
+      stroke-color: 1040A3
+    tip:
+      stroke-color: 609000
+    warning:
+      stroke-color: E6A623
+link:
+  font-color: 2353FF
+literal:
+  font-color: 102840
+mark:
+  background-color: 0030A0
+key:
+  background-color: F0F0FF
+  border-color: A0A0A0
+title_page:
+  title:
+    font:
+      color: ff4f2f
+      family: Barlow
+      style: semibold
+      size: 30
+      weight: 200
+  author:
+    font:
+      color: 5f1f00
+      family: Cairo
+      style: bold
+      size: 18
+      weight: 200
+  subtitle:
+    font:
+      color: 111
+      family: Cairo
+      style: bold
+      size: 18
+      weight: 200
+abstract:
+  font-color: 
+blockquote:
+  border-color: $base-border-color
+  cite:
+    font-color: 503004
+    background-color: 9F7987
+verse:
+  border-color: $blockquote-border-color
+  cite:
+    font-color: $blockquote-cite-font-color
+conum:
+  font-color: $literal-font-color
+example:
+  background-color: $page-background-color
+  border-color: $base-border-color
+sidebar:
+  background-color: aaf594ad
+  border-color: 145700e6
+  title:
+    font-color: $heading-font-color
+thematic-break:
+  border-color: $base-border-color
+table:
+  background-color: $page-background-color
+  border-color: 222222
+  foot:
+    background-color: $table-background-color
+header:
+  font-color: 666666
+footer:
+  border-color: 222222
+font:
+  catalog:
+    merge: true # set value to true to merge catalog with theme you're extending
+    Barlow:
+      bold: barlowcondensed-semibold.ttf
+      bold_italic: barlowcondensed-semibolditalic.ttf
+      italic: barlowcondensed-italic.ttf
+      normal: barlowcondensed-regular.ttf
+      semibold: barlowcondensed-semibold.ttf
+      semibold_italic: barlowcondensed-semibolditalic.ttf
+    Cairo:  
+      bold: cairo-bold.ttf
+      bold_italic: cairo-black.ttf
+      italic: cairo-black.ttf
+      normal: cairo-regular.ttf
+      black: cairo-black.ttf
+      semibold: cairo-semibold.ttf
+    AdventPro: 
+      normal: adventpro-light.ttf
+      bold: adventpro-bold.ttf
+      semibold: adventpro-semibold.ttf
+      italic: adventpro-semibold.ttf
+      bold_italic: adventpro-thin.ttf
+    Arvo:
+      bold: arvo-bold.ttf
+      bold_italic: arvo-bolditalic.ttf
+      italic: arvo-italic.ttf
+      normal: arvo-regular.ttf
+    Cascadia:
+      normal: cascadiamono-regular.ttf
+      bold: cascadiamono-bold.ttf
+      bold_italic: cascadiamono-semibold.ttf
+      italic: cascadiamono-semilight.ttf
+      semibold: cascadiamono-semibold.ttf
+    Lato: # for file in $(ls -1 ~/Library/Fonts/Lato-*ttf); do n=$(echo $file| tr '[:upper:]' '[:lower:]' | xargs basename); echo $n; cp -v $file $n ; done
+      black: lato-black.ttf
+      black_italic: lato-blackitalic.ttf
+      bold: lato-bold.ttf
+      bold_italic: lato-bolditalic.ttf
+      hairline: lato-hairline.ttf
+      hairline_italic: lato-hairlineitalic.ttf
+      heavy: lato-heavy.ttf
+      heavy_italic: lato-heavyitalic.ttf
+      italic: lato-italic.ttf
+      light: lato-light.ttf
+      light_italic: lato-lightitalic.ttf
+      medium: lato-medium.ttf
+      medium_italic: lato-mediumitalic.ttf
+      regular: lato-regular.ttf
+      semibold: lato-semibold.ttf
+      semibold_italic: lato-semibolditalic.ttf
+      thin: lato-thin.ttf
+      thin_italic: lato-thinitalic.ttf
+
+page:
+  background-color: FFFFFF
+  layout: portrait
+  margin: [0.75in, 1in, 0.75in, 1in]
+  size: Letter
+toc:
+  :toclevels: 5
+  font:
+    size: 8
+    family: Barlow
