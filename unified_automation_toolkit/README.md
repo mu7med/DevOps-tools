@@ -22,10 +22,3 @@ A JSON version is also available at `context.json`.
 ## Safety
 - **Read-only**: Scripts that only list or get information.
 - **Destructive/Write**: Scripts that contain `rm`, `delete`, `drop`, or other potential change-inducing commands. **Use with caution.**
-
-## Origin
-Consolidated from:
-- `DevOps-Bash-tools`
-- `bash-scripts`
-- `bash-utils`
-- `bashmatic`
