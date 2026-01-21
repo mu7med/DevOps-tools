@@ -66,7 +66,12 @@ You are operating within the `unified_automation_toolkit` repository.
 
 ## Available Skills
 
-You have access to 18 specialized skills in `.agent/skills/`. Use them based on task context:
+You have access to 19 specialized skills in `.agent/skills/`. Use them based on task context:
+
+### Communication & Requirements
+| Skill | Purpose | When to Use |
+|-------|---------|-------------|
+| `ask-questions-if-underspecified` | Clarify requirements before starting | When requirements are vague, missing constraints, or unsafe |
 
 ### DevOps & Infrastructure Skills
 | Skill | Purpose | When to Use |
